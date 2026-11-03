@@ -1,0 +1,92 @@
+name: Mooncakes compatibility scan
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 发布窗口（天）
+        type: string
+        default: '30'
+      jobs:
+        description: 同时检查模块数
+        type: string
+        default: '2'
+      timeout:
+        description: 单次 moon check 超时（秒）
+        type: string
+        default: '300'
+      package:
+        description: 仅检查一个模块（留空表示不限）
+        type: string
+      limit:
+        description: 最多检查模块数（留空表示不限）
+        type: string
+      smoke:
+        description: 冒烟模式（默认最多 3 个真实包，另检查 warning 样例）
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run scanner
+        id: scan
+        continue-on-error: true
+        env:
+          SCAN_DAYS: ${{ inputs.days || '30' }}
+          SCAN_JOBS: ${{ inputs.jobs || '2' }}
+          SCAN_TIMEOUT: ${{ inputs.timeout || '300' }}
+          SCAN_PACKAGE: ${{ inputs.package }}
+          SCAN_LIMIT: ${{ inputs.limit }}
+          SCAN_SMOKE: ${{ inputs.smoke }}
+        shell: bash
+        run: |
+          args=(--days "$SCAN_DAYS" --jobs "$SCAN_JOBS" --timeout "$SCAN_TIMEOUT")
+          if [[ -n "$SCAN_PACKAGE" ]]; then args+=(--package "$SCAN_PACKAGE"); fi
+          if [[ -n "$SCAN_LIMIT" ]]; then args+=(--limit "$SCAN_LIMIT"); fi
+          cli=dist/src/cli.js
+          if [[ "$SCAN_SMOKE" == 'true' ]]; then cli=dist/scripts/smoke.js; fi
+          # Stop before the Actions hard deadline so SIGTERM can save the report.
+          set +e
+          timeout --signal=TERM --kill-after=30s 320m node "$cli" "${args[@]}"
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      - name: Publish statistics and preserve reproduction files
+        if: always()
+        run: node dist/scripts/ci-summary.js results
+      - name: Upload reports, logs and archives
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mooncakes-scan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: results/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Preserve scanner exit status
+        if: always()
+        env:
+          SCAN_EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+        run: |
+          case "$SCAN_EXIT_CODE" in
+            0) exit 0 ;;
+            1) echo 'Found regression candidates'; exit 1 ;;
+            *) echo "Scan failed or incomplete (exit $SCAN_EXIT_CODE)"; exit 2 ;;
+          esac

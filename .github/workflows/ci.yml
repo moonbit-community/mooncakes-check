@@ -1,0 +1,56 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm start -- --help
+
+  online-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Real toolchains, three packages and warning fixture
+        run: timeout --signal=TERM --kill-after=30s 30m node dist/scripts/smoke.js --limit 3
+      - name: Publish smoke statistics
+        if: always()
+        run: node dist/scripts/ci-summary.js results
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mooncakes-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: results/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

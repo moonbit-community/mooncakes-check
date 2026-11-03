@@ -1,0 +1,16 @@
+{
+  "name": "mooncakes-check",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mooncakes stable / pre-release 工具链兼容性扫描器",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/cli.js",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "smoke": "npm run build && node dist/scripts/smoke.js"
+  },
+  "dependencies": { "semver": "7.8.5", "yauzl": "3.4.0" },
+  "devDependencies": { "@types/node": "22.14.0", "typescript": "5.9.3" }
+}
