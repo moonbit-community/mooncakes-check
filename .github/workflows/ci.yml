@@ -1,8 +1,7 @@
 name: Build and test
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +25,6 @@ jobs:
       - run: npm start -- --help
 
   online-smoke:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -45,12 +43,12 @@ jobs:
       - name: Publish smoke statistics
         if: always()
         run: node dist/scripts/ci-summary.js results
-      - name: Upload smoke evidence
+      - name: Upload smoke regressions
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mooncakes-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-          path: results/
+          path: results/*/artifacts/
           include-hidden-files: true
-          if-no-files-found: warn
+          if-no-files-found: ignore
           retention-days: 14

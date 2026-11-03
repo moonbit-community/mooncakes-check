@@ -90,12 +90,13 @@ results/<run-id>/
 
 ## GitHub Actions
 
-- **Build and test**：每次 push / PR 在 Node.js 22 和 24 上执行 `npm ci`、构建和测试。推送 `main` 时，测试通过后还会自动运行联网冒烟检查（三个真实包及 warning 样例），上传单独的 `mooncakes-smoke-*` artifact。
-- **Mooncakes compatibility scan**：推送 `main` 后自动运行完整的 30 天扫描；也可到 **Actions → Mooncakes compatibility scan → Run workflow** 手动设置 days、jobs、timeout、package、limit。
+- 两个工作流均仅支持手动触发，push 和 pull request 不会自动运行。
+- **Build and test**：到 **Actions → Build and test → Run workflow** 手动启动，在 Node.js 22 和 24 上执行 `npm ci`、构建和测试。测试通过后运行联网冒烟检查（三个真实包及 warning 样例），发现回归候选时上传单独的 `mooncakes-smoke-*` artifact。
+- **Mooncakes compatibility scan**：到 **Actions → Mooncakes compatibility scan → Run workflow** 手动启动，默认运行完整的 30 天扫描，可设置 days、jobs、timeout、package、limit。
 - 勾选 `smoke` 可执行联网冒烟验证：默认最多 3 个真实模块，再用两套真实工具链检查 warning 样例。`limit` 可以覆盖冒烟模式的默认数量。
 - Actions Summary 显示选中数、完成数、两边通过数、回归数、运行错误和未完成数，并列出工具链版本及回归模块。
-- 无论扫描成功或失败，都尝试上传 `mooncakes-scan-<run-id>-<attempt>` artifact，保存 14 天；包含 `results/` 和 `reproduction.tar.gz`（本轮索引及保留的回归工作目录）。路径以报告记录的 runner 目录为准，迁移后需要相应调整工作目录和工具链链接。
-- CI 在 320 分钟时向 CLI 发出 SIGTERM，给报告保存和产物上传留出时间；未扫描完的模块会保留为 pending。可用 `--package` 或 `--limit` 缩小范围。扫描退出码非零时工作流失败，但仍能下载统计结果。
+- 无论扫描成功或失败，都会汇总已有结果；只有发现回归候选时才上传 `mooncakes-scan-<run-id>-<attempt>` artifact，保存 14 天。扫描和冒烟工作流都只上传 `results/<run-id>/artifacts/`：`report.json` 仅包含回归候选的模块详情（`summary` 保留整轮统计）、`regressions.md`、回归模块的日志与源码 ZIP，以及 `reproduction.tar.gz`（本轮索引及回归模块工作目录）。不上传其他模块的数据、warning 样例文件、工具链安装日志、工具链/core 归档或工作目录中的工具链链接；工具链版本、下载 URL 和哈希仍记录在报告中。路径以报告记录的 runner 目录为准，复现时需要另行安装工具链，并相应调整工作目录和工具链链接。
+- CI 在 320 分钟时向 CLI 发出 SIGTERM，给报告保存和产物上传留出时间；未扫描完的模块会保留为 pending。可用 `--package` 或 `--limit` 缩小范围。扫描退出码非零时工作流失败，整轮统计仍可在 Actions Summary 中查看，已发现的回归候选仍会上传。
 
 已安装 GitHub CLI 时也可触发：
 

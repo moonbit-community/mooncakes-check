@@ -1,8 +1,6 @@
 name: Mooncakes compatibility scan
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       days:
@@ -71,14 +69,14 @@ jobs:
       - name: Publish statistics and preserve reproduction files
         if: always()
         run: node dist/scripts/ci-summary.js results
-      - name: Upload reports, logs and archives
+      - name: Upload regression evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mooncakes-scan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: results/
+          path: results/*/artifacts/
           include-hidden-files: true
-          if-no-files-found: warn
+          if-no-files-found: ignore
           retention-days: 14
       - name: Preserve scanner exit status
         if: always()
